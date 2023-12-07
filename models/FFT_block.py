@@ -65,19 +65,19 @@ class Decoder(nn.Module):
             d_model, d_inner, n_head, fft_conv1d_kernel,fft_conv1d_padding, dropout) for _ in range(n_layers)])
         self.sub_proj = nn.Linear(self.within_sub_num, d_model)
 
-    def forward(self, dec_input, sub_id):
+    def forward(self, dec_input):
 
         dec_output = self.conv(dec_input.transpose(1,2))
         dec_output = dec_output.transpose(1,2)
 
-        # Global conditioner.
-        if self.g_con == True:
-            sub_emb    = F.one_hot(sub_id, self.within_sub_num)
-            sub_emb    = self.sub_proj(sub_emb.float())
-            output = dec_output + sub_emb.unsqueeze(1)
+        # # Global conditioner.
+        # if self.g_con == True:
+        #     sub_emb    = F.one_hot(sub_id, self.within_sub_num)
+        #     sub_emb    = self.sub_proj(sub_emb.float())
+        #     output = dec_output + sub_emb.unsqueeze(1)
 
-        else:
-            output = dec_output
+        # else:
+        output = dec_output
         
         for dec_layer in self.layer_stack:
             output = dec_layer(

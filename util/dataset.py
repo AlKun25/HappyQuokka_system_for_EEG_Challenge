@@ -15,7 +15,7 @@ class RegressionDataset(Dataset):
         input_length,
         channels,
         task,
-        g_con = True
+        g_con = False
     ):
 
         self.input_length = input_length
@@ -42,12 +42,12 @@ class RegressionDataset(Dataset):
         # 2. For held-out subject, return eeg, envelope
 
         if self.task == "train":
-            x, y, sub_id = self.__train_data__(recording_index)
+            x, y = self.__train_data__(recording_index)
 
         else:
-            x, y, sub_id = self.__test_data__(recording_index)
+            x, y = self.__test_data__(recording_index)
 
-        return x, y, sub_id
+        return x, y
 
 
     def __train_data__(self, recording_index):
@@ -72,7 +72,7 @@ class RegressionDataset(Dataset):
             # return torch.FloatTensor(framed_data[0]), torch.FloatTensor(framed_data[1]), sub_idx
         
             
-        return torch.FloatTensor(framed_data[0]), torch.FloatTensor(framed_data[1]), sub_idx
+        return torch.FloatTensor(framed_data[0]), torch.FloatTensor(framed_data[1])
 
     def __test_data__(self, recording_index):
         """
@@ -97,4 +97,4 @@ class RegressionDataset(Dataset):
         else:
             sub_idx = torch.FloatTensor([0])
 
-        return framed_data[0], framed_data[1], sub_idx
+        return framed_data[0], framed_data[1]

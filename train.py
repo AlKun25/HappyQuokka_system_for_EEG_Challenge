@@ -31,9 +31,9 @@ parser.add_argument('--lamda',type=float,default=0.2)
 parser.add_argument('--writing_interval', type=int, default=10)
 parser.add_argument('--saving_interval', type=int, default=10)
 
-parser.add_argument('--dataset_folder',type= str, default="", help='write down your absolute path of dataset folder')
-parser.add_argument('--split_folder',type= str, default="split_data")
-parser.add_argument('--experiment_folder',default=None, help='write down experiment name')
+parser.add_argument('--dataset_folder',type= str, default="/home/kunal/eeg_data/derivatives/", help='write down your absolute path of dataset folder')
+parser.add_argument('--split_folder',type= str, default="downsample")
+parser.add_argument('--experiment_folder',default="1", help='write down experiment name')
 
 args = parser.parse_args()
 
@@ -45,8 +45,8 @@ device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
 # Provide the path of the dataset.
 # which is split already to train, val, test (1:1:1).
 data_folder = os.path.join(args.dataset_folder, args.split_folder)
-features = ["eeg"] + ["envelope"]
-
+features = ["eeg"] + ["mel"]
+print(data_folder)
 # Create a directory to store (intermediate) results.
 result_folder = 'test_results'
 if args.experiment_folder is None:
@@ -67,8 +67,16 @@ def main():
     scheduler = StepLR(optimizer, step_size=50, gamma=0.9)
 
     # Define train set and loader.
-    train_files = [x for x in glob.glob(os.path.join(data_folder, "train_-_*")) if os.path.basename(x).split("_-_")[-1].split(".")[0] in features]
-    train_set= RegressionDataset(train_files, input_length, args.in_channel, 'train', args.g_con)
+    train_files = [x for x in glob.glob(os.path.join(data_folder, "train", "train_-_*")) if os.path.basename(x).split("_-_")[-2].split(".")[0] in features]
+    print(train_files[0])
+    import numpy as np
+
+    path = train_files[1]
+    mel = np.load(path)
+    print("Checking if data is here")
+    print(mel.shape)
+    train_set= RegressionDataset(train_files, 320, args.in_channel, 'train', args.g_con)
+    print(len(train_set[0]))
     train_dataloader = torch.utils.data.DataLoader(
             train_set,
             batch_size = args.batch_size,
@@ -76,108 +84,121 @@ def main():
             sampler = None,
             drop_last=True,
             shuffle=True)
-
+    print("************************************************************************")
+    print(len(train_dataloader))
     # Define validation set and loader.
-    val_files = [x for x in glob.glob(os.path.join(data_folder, "val_-_*")) if os.path.basename(x).split("_-_")[-1].split(".")[0] in features]
-    val_set = RegressionDataset(val_files, input_length, args.in_channel, 'val', args.g_con)
+    val_files = [x for x in glob.glob(os.path.join(data_folder, "val", "val_-_*")) if os.path.basename(x).split("_-_")[-2].split(".")[0] in features]
+    val_set = RegressionDataset(val_files, 320, args.in_channel, 'val', args.g_con)
+    print(val_files[0])
     val_dataloader = torch.utils.data.DataLoader(
             val_set,
-            batch_size = 1,
+            batch_size = args.batch_size,
             num_workers = 4,
             sampler = None,
             drop_last=True,
             shuffle=False)
-
+    print(len(val_dataloader))
     # Define test set and loader.
-    test_files = [x for x in glob.glob(os.path.join(data_folder, "test_-_*")) if os.path.basename(x).split("_-_")[-1].split(".")[0] in features]
-    test_set = RegressionDataset(test_files, input_length, args.in_channel, 'test', args.g_con)
+    test_files = [x for x in glob.glob(os.path.join(data_folder, "test", "test_-_*")) if os.path.basename(x).split("_-_")[-2].split(".")[0] in features]
+    print(test_files[0])
+    test_set = RegressionDataset(test_files, 320, args.in_channel, 'test', args.g_con)
     test_dataloader = torch.utils.data.DataLoader(
         test_set,
-        batch_size = 1,
+        batch_size = args.batch_size,
         num_workers = 4,
         sampler = None,
         drop_last=True,
         shuffle=False)
+    print(len(val_dataloader))
+    # import numpy as np
 
+    path = val_files[0]
+    mel = np.load(path)
+    print("Checking if data is here")
+    print(mel.shape)
+    for inputs, labels in val_dataloader:
+        print(inputs,labels)
+    #val_-_sub-037_-_podcast_10_-_mel_-_15.npy 
+    #train_-_sub-037_-_podcast_11_-_eeg_-_670.npy 
     # Train the model.
-    for epoch in range(args.epoch):
-        model.train()
-        train_loss = 0
+    # for epoch in range(args.epoch):
+    #     model.train()
+    #     train_loss = 0
 
-        for inputs, labels, sub_id in train_dataloader:
-            optimizer.zero_grad()
+    #     for inputs, labels in train_dataloader:
+    #         optimizer.zero_grad()
 
-            inputs = inputs.to(device)
-            labels = labels.to(device)
-            sub_id = sub_id.to(device)
-            outputs = model(inputs, sub_id)
+    #         inputs = inputs.to(device)
+    #         labels = labels.to(device)
+    #         # sub_id = sub_id.to(device)
+    #         outputs = model(inputs)
 
-            l_p = pearson_loss(outputs, labels) 
-            l_1 = l1_loss(outputs, labels)
-            loss = l_p + args.lamda * l_1
-            loss = loss.mean()
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.item()
+    #         l_p = pearson_loss(outputs, labels) 
+    #         l_1 = l1_loss(outputs, labels)
+    #         loss = l_p + args.lamda * l_1
+    #         loss = loss.mean()
+    #         loss.backward()
+    #         optimizer.step()
+    #         train_loss += loss.item()
 
-        train_loss /= len(train_dataloader)
+    #     train_loss /= len(train_dataloader)
 
-        if epoch % args.writing_interval == 0:
-            print(f'|-Train-|{epoch}: {train_loss:.3f}')
-            writer.add_losses("Loss", "train",  train_loss, epoch)
-            writer.add_losses("Loss_l1", "train",  train_loss, epoch)
+    #     if epoch % args.writing_interval == 0:
+    #         print(f'|-Train-|{epoch}: {train_loss:.3f}')
+    #         writer.add_losses("Loss", "train",  train_loss, epoch)
+    #         writer.add_losses("Loss_l1", "train",  train_loss, epoch)
 
-        # Validate the model.
-        val_loss = 0
-        val_metric = 0
+    #     # Validate the model.
+    #     val_loss = 0
+    #     val_metric = 0
         
-        if epoch % args.writing_interval == 0:
+    #     if epoch % args.writing_interval == 0:
 
-            model.eval()
+    #         model.eval()
 
-            with torch.no_grad():
-                for val_inputs, val_labels, val_sub_id in val_dataloader:
-                    val_inputs = val_inputs.squeeze(0).to(device)
-                    val_labels = val_labels.squeeze(0).to(device)
-                    val_sub_id = val_sub_id.to(device)
+    #         with torch.no_grad():
+    #             for val_inputs, val_labels in val_dataloader:
+    #                 val_inputs = val_inputs.squeeze(0).to(device)
+    #                 val_labels = val_labels.squeeze(0).to(device)
+    #                 # val_sub_id = val_sub_id.to(device)
 
-                    val_outputs = model(val_inputs, val_sub_id)
-                    val_loss   += pearson_loss(val_outputs, val_labels).mean()
-                    val_metric += pearson_metric(val_outputs, val_labels).mean()
+    #                 val_outputs = model(val_inputs)
+    #                 val_loss   += pearson_loss(val_outputs, val_labels).mean()
+    #                 val_metric += pearson_metric(val_outputs, val_labels).mean()
 
-                val_loss /= len(val_dataloader)
-                val_metric /= len(val_dataloader)
-                val_metric = val_metric.mean()
+    #             val_loss /= len(val_dataloader)
+    #             val_metric /= len(val_dataloader)
+    #             val_metric = val_metric.mean()
 
-                print(f'|-Validation-|{epoch}: {val_loss.mean().item():.3f} {val_metric.item():.3f}')
-                writer.add_losses("Loss", "Validation",  val_loss, epoch)
-                writer.add_losses("Pearson", "Validation",  val_metric, epoch)
+    #             print(f'|-Validation-|{epoch}: {val_loss.mean().item():.3f} {val_metric.item():.3f}')
+    #             writer.add_losses("Loss", "Validation",  val_loss, epoch)
+    #             writer.add_losses("Pearson", "Validation",  val_metric, epoch)
 
-                # Test the model.
-                test_loss = 0
-                test_metric = 0
+    #             # Test the model.
+    #             test_loss = 0
+    #             test_metric = 0
 
-                for test_inputs, test_labels, test_sub_id in test_dataloader:
-                    test_inputs = test_inputs.squeeze(0).to(device)
-                    test_labels = test_labels.squeeze(0).to(device)
-                    test_sub_id = test_sub_id.to(device)
+    #             for test_inputs, test_labels in test_dataloader:
+    #                 test_inputs = test_inputs.squeeze(0).to(device)
+    #                 test_labels = test_labels.squeeze(0).to(device)
+    #                 # test_sub_id = test_sub_id.to(device)
 
-                    test_outputs = model(test_inputs, test_sub_id)
-                    test_loss += pearson_loss(test_outputs, test_labels).mean()
-                    test_metric += pearson_metric(test_outputs, test_labels).mean()
+    #                 test_outputs = model(test_inputs)
+    #                 test_loss += pearson_loss(test_outputs, test_labels).mean()
+    #                 test_metric += pearson_metric(test_outputs, test_labels).mean()
             
-                test_loss /= len(test_dataloader)
-                test_metric /= len(test_dataloader)
-                test_metric = test_metric.mean()    
-                print(f'|-Test-|{epoch}: {test_loss.mean().item():.3f} {test_metric.item():.3f}')
-                writer.add_losses("Loss", "Test",  test_loss.mean().item(), epoch)
-                writer.add_losses("Pearson", "Test",  test_metric, epoch)
+    #             test_loss /= len(test_dataloader)
+    #             test_metric /= len(test_dataloader)
+    #             test_metric = test_metric.mean()    
+    #             print(f'|-Test-|{epoch}: {test_loss.mean().item():.3f} {test_metric.item():.3f}')
+    #             writer.add_losses("Loss", "Test",  test_loss.mean().item(), epoch)
+    #             writer.add_losses("Pearson", "Test",  test_metric, epoch)
 
-        if epoch % args.saving_interval == 0:
-            learning_rate = print(optimizer.param_groups[0]["lr"])
-            save_checkpoint(model, optimizer, learning_rate, epoch, save_path)    
+    #     if epoch % args.saving_interval == 0:
+    #         learning_rate = print(optimizer.param_groups[0]["lr"])
+    #         save_checkpoint(model, optimizer, learning_rate, epoch, save_path)    
 
-        scheduler.step()
+    #     scheduler.step()
 
 
 if __name__ == '__main__':
