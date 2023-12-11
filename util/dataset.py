@@ -30,7 +30,6 @@ class RegressionDataset(Dataset):
         grouped = itertools.groupby(sorted(files), lambda x: "_-_".join(os.path.basename(x).split("_-_")[:3]))
         for recording_name, feature_paths in grouped:
             new_files += [sorted(feature_paths, key=lambda x: "0" if x == "eeg" else x)]
-
         return new_files
 
     def __len__(self):
@@ -62,12 +61,12 @@ class RegressionDataset(Dataset):
 
             framed_data += [data[start_idx:start_idx + self.input_length]]
 
-        if self.g_con == True:
-            sub_idx = feature.split('/')[-1].split('_-_')[1].split('-')[-1]
-            sub_idx = int(sub_idx) - 1 
+        # if self.g_con == True:
+        #     sub_idx = feature.split('/')[-1].split('_-_')[1].split('-')[-1]
+        #     sub_idx = int(sub_idx) - 1 
     
-        else:
-            sub_idx = torch.FloatTensor([0])
+        # else:
+        #     sub_idx = torch.FloatTensor([0])
     
             # return torch.FloatTensor(framed_data[0]), torch.FloatTensor(framed_data[1]), sub_idx
         
@@ -90,11 +89,12 @@ class RegressionDataset(Dataset):
             segment_data = torch.cat(segment_data)
             framed_data += [segment_data]
             
-        if self.g_con == True:
-            sub_idx = feature.split('/')[-1].split('_-_')[1].split('-')[-1]
-            sub_idx = int(sub_idx) - 1    
+        # if self.g_con == True:
+        #     sub_idx = feature.split('/')[-1].split('_-_')[1].split('-')[-1]
+        #     sub_idx = int(sub_idx) - 1    
 
-        else:
-            sub_idx = torch.FloatTensor([0])
+        # else:
+        #     sub_idx = torch.FloatTensor([0])
 
-        return framed_data[0], framed_data[1]
+        # return framed_data[0], framed_data[1]
+        return torch.FloatTensor(framed_data[0]), torch.FloatTensor(framed_data[1])
