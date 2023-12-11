@@ -6,32 +6,31 @@ from collections import OrderedDict
 import pdb
 from models.SubLayers import MultiHeadAttention, PositionwiseFeedForward
 
+
 class PreLNFFTBlock(torch.nn.Module):
-
-    def __init__(self,
-                 d_model,
-                 d_inner,
-                 n_head,
-                 fft_conv1d_kernel,
-                 fft_conv1d_padding,
-                 dropout,
-                 **kwargs):
-
+    def __init__(
+        self,
+        d_model,
+        d_inner,
+        n_head,
+        fft_conv1d_kernel,
+        fft_conv1d_padding,
+        dropout,
+        **kwargs
+    ):
         super(PreLNFFTBlock, self).__init__()
 
         d_k = d_model // n_head
         d_v = d_model // n_head
 
-        self.slf_attn = MultiHeadAttention(
-            n_head, d_model, d_k, d_v, dropout=dropout)
+        self.slf_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
         self.pos_ffn = PositionwiseFeedForward(
-            d_model, d_inner, fft_conv1d_kernel,fft_conv1d_padding, dropout=dropout)
+            d_model, d_inner, fft_conv1d_kernel, fft_conv1d_padding, dropout=dropout
+        )
 
     def forward(self, fft_input):
-
         # dec_input size: [B,T,C]
-        fft_output, _= self.slf_attn(
-            fft_input, fft_input, fft_input)
+        fft_output, _ = self.slf_attn(fft_input, fft_input, fft_input)
 
         fft_output = self.pos_ffn(fft_output)
 
@@ -39,36 +38,46 @@ class PreLNFFTBlock(torch.nn.Module):
 
 
 class Decoder(nn.Module):
-
-    def __init__(self,
-                 in_channel,
-                 d_model,
-                 d_inner,
-                 n_head,
-                 n_layers,
-                 fft_conv1d_kernel,
-                 fft_conv1d_padding,             
-                 dropout,
-                 g_con,
-                 within_sub_num = 71,
-                 **kwargs):
-
+    def __init__(
+        self,
+        in_channel,
+        d_model,
+        d_inner,
+        n_head,
+        n_layers,
+        fft_conv1d_kernel,
+        fft_conv1d_padding,
+        dropout,
+        g_con,
+        within_sub_num=71,
+        **kwargs
+    ):
         super(Decoder, self).__init__()
         d_k = d_model // n_head
         d_v = d_model // n_head
         self.g_con = g_con
         self.within_sub_num = within_sub_num
         self.slf_attn = MultiHeadAttention
-        self.fc = nn.Linear(d_model, 1)   
-        self.conv = nn.Conv1d(in_channel, d_model, kernel_size = 7, padding=3)
-        self.layer_stack = nn.ModuleList([PreLNFFTBlock(
-            d_model, d_inner, n_head, fft_conv1d_kernel,fft_conv1d_padding, dropout) for _ in range(n_layers)])
+        self.fc = nn.Linear(d_model, 1)
+        self.conv = nn.Conv1d(in_channel, d_model, kernel_size=7, padding=3)
+        self.layer_stack = nn.ModuleList(
+            [
+                PreLNFFTBlock(
+                    d_model,
+                    d_inner,
+                    n_head,
+                    fft_conv1d_kernel,
+                    fft_conv1d_padding,
+                    dropout,
+                )
+                for _ in range(n_layers)
+            ]
+        )
         self.sub_proj = nn.Linear(self.within_sub_num, d_model)
 
     def forward(self, dec_input):
-
-        dec_output = self.conv(dec_input.transpose(1,2))
-        dec_output = dec_output.transpose(1,2)
+        dec_output = self.conv(dec_input.transpose(1, 2))
+        dec_output = dec_output.transpose(1, 2)
 
         # # Global conditioner.
         # if self.g_con == True:
@@ -78,10 +87,9 @@ class Decoder(nn.Module):
 
         # else:
         output = dec_output
-        
+
         for dec_layer in self.layer_stack:
-            output = dec_layer(
-                output)
+            output = dec_layer(output)
 
         output = self.fc(output)
 

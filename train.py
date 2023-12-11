@@ -132,7 +132,7 @@ def main():
     # for inputs, labels in val_dataloader:
     #     print(inputs,labels)
 
- 
+
     #Train the model.
     for epoch in range(args.epoch):
         model.train()
@@ -173,8 +173,6 @@ def main():
             with torch.no_grad():
                 ic()
                 for val_inputs, val_labels in val_dataloader:
-                    ic(val_inputs.size())
-                    ic(val_labels.size())
                     val_inputs = val_inputs.squeeze(0).to(device)
                     val_labels = val_labels.squeeze(0).to(device)
                     # val_sub_id = val_sub_id.to(device)
