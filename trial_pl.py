@@ -5,8 +5,9 @@ import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import StepLR
 import lightning as L
-from lightning.callbacks.progress import TQDMProgressBar
-from lightning.loggers import CSVLogger
+from lightning.pytorch.callbacks.progress import TQDMProgressBar
+from lightning.pytorch.callbacks import EarlyStopping
+from lightning.pytorch.loggers import CSVLogger
 
 from util.utils import get_writer, save_checkpoint
 from util.cal_pearson import l1_loss, pearson_loss, pearson_metric
@@ -16,35 +17,45 @@ from models.FFT_block import Decoder
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--epoch',type=int, default=1000)
-parser.add_argument('--batch_size',type=int, default=64)
-parser.add_argument('--win_len',type=int, default = 10)
-parser.add_argument('--sample_rate',type=int, default = 64)
-parser.add_argument('--gpu', type=int, default=1)
-parser.add_argument('--g_con', default=False, help="experiment for within subject")
+parser.add_argument("--epoch", type=int, default=1000)
+parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--win_len", type=int, default=10)
+parser.add_argument("--sample_rate", type=int, default=64)
+parser.add_argument("--gpu", type=int, default=1)
+parser.add_argument("--g_con", default=False, help="experiment for within subject")
 
-parser.add_argument('--in_channel', type=int, default=64, help="channel of the input eeg signal")
-parser.add_argument('--d_model', type=int, default=128)
-parser.add_argument('--d_inner', type=int, default=1024) 
-parser.add_argument('--n_head', type=int, default=2)
-parser.add_argument('--n_layers',type=int, default=8)
-parser.add_argument('--fft_conv1d_kernel', type=tuple,default=(9, 1))
-parser.add_argument('--fft_conv1d_padding',type=tuple, default= (4, 0))
-parser.add_argument('--learning_rate', type=float, default=0.0005)
-parser.add_argument('--dropout',type=float,default=0.3)
-parser.add_argument('--lamda',type=float,default=0.2)
-parser.add_argument('--writing_interval', type=int, default=10)
-parser.add_argument('--saving_interval', type=int, default=10)
+parser.add_argument(
+    "--in_channel", type=int, default=64, help="channel of the input eeg signal"
+)
+parser.add_argument("--d_model", type=int, default=128)
+parser.add_argument("--d_inner", type=int, default=1024)
+parser.add_argument("--n_head", type=int, default=2)
+parser.add_argument("--n_layers", type=int, default=8)
+parser.add_argument("--fft_conv1d_kernel", type=tuple, default=(9, 1))
+parser.add_argument("--fft_conv1d_padding", type=tuple, default=(4, 0))
+parser.add_argument("--learning_rate", type=float, default=0.0005)
+parser.add_argument("--dropout", type=float, default=0.3)
+parser.add_argument("--lamda", type=float, default=0.2)
+parser.add_argument("--writing_interval", type=int, default=10)
+parser.add_argument("--saving_interval", type=int, default=10)
 
-parser.add_argument('--dataset_folder',type= str, default="/home/kunal/eeg_data/derivatives/", help='write down your absolute path of dataset folder')
-parser.add_argument('--split_folder',type= str, default="downsample")
-parser.add_argument('--experiment_folder',default="1", help='write down experiment name')
+parser.add_argument(
+    "--dataset_folder",
+    type=str,
+    default="/home/kunal/eeg_data/derivatives/",
+    help="write down your absolute path of dataset folder",
+)
+parser.add_argument("--split_folder", type=str, default="downsample")
+parser.add_argument(
+    "--experiment_folder", default="1", help="write down experiment name"
+)
 
 args = parser.parse_args()
 
- # Set the parameters and device.
+# Set the parameters and device.
 
-input_length = args.sample_rate * args.win_len 
+input_length = args.sample_rate * args.win_len
+
 
 class DecoderPL(L.LightningModule):
     def __init__(self):
@@ -70,31 +81,19 @@ class DecoderPL(L.LightningModule):
         self.log("train_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         return loss
 
-    # def training_epoch_end(self, outputs) -> None:
-    #     gathered = self.all_gather(outputs)
-
-    #     if self.global_rank == 0:
-    #         # print(gathered)
-    #         loss = sum(output["loss"].mean() for output in gathered) / len(outputs)
-    #         print(loss.item())
-
     def validation_step(self, batch, batch_idx):
         inputs, labels = batch
+        inputs = inputs.squeeze(0)
+        labels = labels.squeeze(0)
         outputs = self.model(inputs)
         loss = pearson_loss(outputs, labels).mean()
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         return loss
 
-    # def validation_epoch_end(self, outputs) -> None:
-    #     gathered = self.all_gather(outputs)
-
-    #     if self.global_rank == 0:
-    #         # print(gathered)
-    #         loss = sum(output["loss"].mean() for output in gathered) / len(outputs)
-    #         print(loss.item())
-
     def test_step(self, batch, batch_idx):
         inputs, labels = batch
+        inputs = inputs.squeeze(0)
+        labels = labels.squeeze(0)
         outputs = self.model(inputs)
         loss = pearson_loss(outputs, labels).mean()
         self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
@@ -110,7 +109,7 @@ class DecoderPL(L.LightningModule):
         return optimizer
 
 
-class MNISTDataModule(L.LightningDataModule):
+class RegressionDataModule(L.LightningDataModule):
     def __init__(self, data_dir: str = "path/to/dir"):
         super().__init__()
         self.data_dir = data_dir
@@ -124,9 +123,7 @@ class MNISTDataModule(L.LightningDataModule):
         #     mnist_full, [55000, 5000], generator=torch.Generator().manual_seed(42)
         # )
         if stage == "fit":
-            data_folder = os.path.join(
-                "/home/kunal/eeg_data/derivatives/", "downsample"
-            )
+            data_folder = os.path.join(self.data_dir, "downsample")
             train_files = [
                 x
                 for x in glob.glob(os.path.join(data_folder, "train", "train_-_*"))
@@ -139,10 +136,7 @@ class MNISTDataModule(L.LightningDataModule):
                 task="train",
                 g_con=False,
             )
-        if stage == "validate":
-            data_folder = os.path.join(
-                "/home/kunal/eeg_data/derivatives/", "split_data"
-            )
+            data_folder = os.path.join(self.data_dir, "split_data")
             val_files = [
                 x
                 for x in glob.glob(os.path.join(data_folder + "/val/", "val_-_*"))
@@ -152,9 +146,7 @@ class MNISTDataModule(L.LightningDataModule):
                 files=val_files, input_length=320, channels=64, task="val", g_con=False
             )
         if stage == "test":
-            data_folder = os.path.join(
-                "/home/kunal/eeg_data/derivatives/", "split_data"
-            )
+            data_folder = os.path.join(self.data_dir, "split_data")
             test_files = [
                 x
                 for x in glob.glob(os.path.join(data_folder + "/test/", "test_-_*"))
@@ -176,7 +168,6 @@ class MNISTDataModule(L.LightningDataModule):
             num_workers=4,
             drop_last=True,
             shuffle=True,
-            sampler=True,
         )
 
     def val_dataloader(self):
@@ -184,7 +175,6 @@ class MNISTDataModule(L.LightningDataModule):
             self.val_set,
             batch_size=1,
             num_workers=4,
-            sampler=None,
             drop_last=False,
             shuffle=False,
         )
@@ -194,16 +184,23 @@ class MNISTDataModule(L.LightningDataModule):
             self.test_set,
             batch_size=1,
             num_workers=4,
-            sampler=None,
             drop_last=False,
             shuffle=False,
         )
 
-    # def predict_dataloader(self):
-    #     return DataLoader(self.mnist_predict, batch_size=self.batch_size)
 
 decoder_pl = DecoderPL()
+regression_dm = RegressionDataModule(data_dir="/home/kunal/eeg_data/derivatives/")
+trainer = L.Trainer(
+    max_epochs=1000,
+    accelerator="gpu",
+    devices=[1],
+    logger=CSVLogger(save_dir="lightning_logs/", name="experiment_1"),
+    callbacks=[
+        TQDMProgressBar(refresh_rate=5),
+        EarlyStopping(monitor="val_loss", patience=5, mode="min"),
+    ],
+    check_val_every_n_epoch=1,
+)
 
-trainer = L.Trainer(max_epochs=1000, accelerator="gpu", device=1 if torch.cuda.is_available() else None, logger=CSVLogger(save_dir="logs/"), callbacks = [TQDMProgressBar(refresh_rate=10)])
-
-trainer.fit(model=decoder_pl)
+trainer.fit(decoder_pl, regression_dm)
