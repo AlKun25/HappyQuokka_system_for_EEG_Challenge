@@ -6,8 +6,8 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import StepLR
 import lightning as L
 from lightning.pytorch.callbacks.progress import TQDMProgressBar
-from lightning.pytorch.callbacks import EarlyStopping
-from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.loggers import CSVLogger, TensorBoardLogger
 
 from util.utils import get_writer, save_checkpoint
 from util.cal_pearson import l1_loss, pearson_loss, pearson_metric
@@ -60,6 +60,7 @@ input_length = args.sample_rate * args.win_len
 class DecoderPL(L.LightningModule):
     def __init__(self):
         super().__init__()
+        self.save_hyperparameters()
         self.model = Decoder(**vars(args))
         self.lamda = 0.2
 
@@ -75,10 +76,11 @@ class DecoderPL(L.LightningModule):
         # Loss for the train in epochs
         l_p = pearson_loss(outputs, labels)
         l_1 = l1_loss(outputs, labels)
-        loss = l_p + self.lamda * l_1
+        # loss = l_p + self.lamda * l_1
+        loss = l_1
         loss = loss.mean()
         # Logging to TensorBoard (if installed) by default
-        self.log("train_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log("train/loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -87,7 +89,7 @@ class DecoderPL(L.LightningModule):
         labels = labels.squeeze(0)
         outputs = self.model(inputs)
         loss = pearson_loss(outputs, labels).mean()
-        self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log("val/loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -96,7 +98,7 @@ class DecoderPL(L.LightningModule):
         labels = labels.squeeze(0)
         outputs = self.model(inputs)
         loss = pearson_loss(outputs, labels).mean()
-        self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log("test_loss", loss, prog_bar=True)
         return loss
 
     def configure_optimizers(self):
@@ -106,7 +108,8 @@ class DecoderPL(L.LightningModule):
             betas=(0.9, 0.98),
             eps=1e-09,
         )
-        return optimizer
+        lr_scheduler = StepLR(optimizer, step_size=50, gamma=0.9)
+        return [optimizer], [lr_scheduler]
 
 
 class RegressionDataModule(L.LightningDataModule):
@@ -166,8 +169,10 @@ class RegressionDataModule(L.LightningDataModule):
             self.train_set,
             batch_size=64,
             num_workers=4,
-            drop_last=True,
+            drop_last=False,
             shuffle=True,
+            pin_memory=True
+
         )
 
     def val_dataloader(self):
@@ -177,6 +182,7 @@ class RegressionDataModule(L.LightningDataModule):
             num_workers=4,
             drop_last=False,
             shuffle=False,
+            pin_memory=True
         )
 
     def test_dataloader(self):
@@ -194,13 +200,16 @@ regression_dm = RegressionDataModule(data_dir="/home/kunal/eeg_data/derivatives/
 trainer = L.Trainer(
     max_epochs=1000,
     accelerator="gpu",
-    devices=[1],
-    logger=CSVLogger(save_dir="lightning_logs/", name="experiment_1"),
+    devices=[2],
+    logger=[CSVLogger(save_dir="lightning_logs/", name="experiment_hq_noearly_l1"), TensorBoardLogger(save_dir="lightning_logs/", name="experiment_hq_noearly_l1")],
     callbacks=[
-        TQDMProgressBar(refresh_rate=5),
-        EarlyStopping(monitor="val_loss", patience=5, mode="min"),
+        TQDMProgressBar(refresh_rate=10),
+        # EarlyStopping(monitor="val/loss", patience=20, mode="min"),
+        ModelCheckpoint(monitor='val/loss', mode='min', every_n_epochs=10, save_top_k=5)
     ],
     check_val_every_n_epoch=1,
+    log_every_n_steps=1,
 )
 
 trainer.fit(decoder_pl, regression_dm)
+# trainer.test(decoder_pl, regression_dm)

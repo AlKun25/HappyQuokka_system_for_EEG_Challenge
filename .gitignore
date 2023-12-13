@@ -2,3 +2,4 @@ test_results
 train.sh
 *.pyc
 __pychche__
+lightning_logs
