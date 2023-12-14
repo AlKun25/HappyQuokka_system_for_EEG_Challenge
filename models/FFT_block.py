@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 import numpy as np
 from collections import OrderedDict
+from icecream import ic
 import pdb
 from models.SubLayers import MultiHeadAttention, PositionwiseFeedForward
 
@@ -58,7 +59,7 @@ class Decoder(nn.Module):
         self.g_con = g_con
         self.within_sub_num = within_sub_num
         self.slf_attn = MultiHeadAttention
-        self.fc = nn.Linear(d_model, 1)
+        self.fc = nn.Linear(d_model, 10)
         self.conv = nn.Conv1d(in_channel, d_model, kernel_size=7, padding=3)
         self.layer_stack = nn.ModuleList(
             [
@@ -76,9 +77,9 @@ class Decoder(nn.Module):
         self.sub_proj = nn.Linear(self.within_sub_num, d_model)
 
     def forward(self, dec_input):
+        ic(dec_input.shape)
         dec_output = self.conv(dec_input.transpose(1, 2))
         dec_output = dec_output.transpose(1, 2)
-
         # # Global conditioner.
         # if self.g_con == True:
         #     sub_emb    = F.one_hot(sub_id, self.within_sub_num)
@@ -90,7 +91,5 @@ class Decoder(nn.Module):
 
         for dec_layer in self.layer_stack:
             output = dec_layer(output)
-
         output = self.fc(output)
-
         return output
