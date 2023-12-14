@@ -1,6 +1,7 @@
 import os
 import glob
 import argparse
+from icecream import ic
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import StepLR
@@ -68,22 +69,26 @@ class DecoderPL(L.LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
+        ic("Training started")
         # training_step defines the train loop.
         # it is independent of forward
         inputs, labels = batch
         outputs = self.model(inputs)
-
+        ic(outputs.shape)
         # Loss for the train in epochs
-        l_p = pearson_loss(outputs, labels)
+        l_p = pearson_loss(labels, outputs)
         l_1 = l1_loss(outputs, labels)
         # loss = l_p + self.lamda * l_1
-        loss = l_1
+        loss = l_p
+        # ic(l_p.shape)
         loss = loss.mean()
         # Logging to TensorBoard (if installed) by default
-        self.log("train/loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        # self.log("train/loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        ic(loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
+        ic("Validation started")
         inputs, labels = batch
         inputs = inputs.squeeze(0)
         labels = labels.squeeze(0)
@@ -93,6 +98,7 @@ class DecoderPL(L.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
+        ic("Test started")
         inputs, labels = batch
         inputs = inputs.squeeze(0)
         labels = labels.squeeze(0)
@@ -129,8 +135,8 @@ class RegressionDataModule(L.LightningDataModule):
             data_folder = os.path.join(self.data_dir, "downsample")
             train_files = [
                 x
-                for x in glob.glob(os.path.join(data_folder, "train", "train_-_*"))
-                if os.path.basename(x).split("_-_")[-2].split(".")[0] in self.features
+                for x in glob.glob(os.path.join(data_folder + "/train/", "train_-_*"))
+                if os.path.basename(x).split("_-_")[-1].split(".")[0] in self.features
             ]
             self.train_set = RegressionDataset(
                 files=train_files,
@@ -198,6 +204,7 @@ class RegressionDataModule(L.LightningDataModule):
 decoder_pl = DecoderPL()
 regression_dm = RegressionDataModule(data_dir="/home/kunal/eeg_data/derivatives/")
 trainer = L.Trainer(
+    fast_dev_run=True,
     max_epochs=1000,
     accelerator="gpu",
     devices=[2],

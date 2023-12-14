@@ -1,4 +1,5 @@
 import torch
+from icecream import ic
 import itertools
 import os
 import numpy as np
@@ -19,17 +20,24 @@ class RegressionDataset(Dataset):
     ):
 
         self.input_length = input_length
+        self.task = task
         self.files = self.group_recordings(files)
         self.channels = channels
-        self.task = task
         self.g_con = g_con
 
-    def group_recordings(self, files):
- 
+    def group_recordings(self, files: list):
         new_files = []
-        grouped = itertools.groupby(sorted(files), lambda x: "_-_".join(os.path.basename(x).split("_-_")[:3]))
-        for recording_name, feature_paths in grouped:
-            new_files += [sorted(feature_paths, key=lambda x: "0" if x == "eeg" else x)]
+        # ic("_-_".join(os.path.basename(files[0]).split("_-_")))
+        ic(type(files), len(files))
+        if(self.task !="train"):
+            grouped_files = itertools.groupby(sorted(files), lambda x: "_-_".join(os.path.basename(x).split("_-_")[:3]))
+            for recording_name, feature_paths in grouped_files:
+                new_files += [sorted(feature_paths, key=lambda x: "0" if x == "eeg" else x)]
+        else:
+            grouped_files = itertools.groupby(sorted(files), lambda x: "_-_".join(os.path.basename(x).split("_-_")[:4]))
+            for recording_name, feature_paths in grouped_files:
+                new_files += [sorted(feature_paths, key=lambda x: "0" if x == "eeg" else x)]
+        ic(new_files[0])
         return new_files
 
     def __len__(self):
@@ -50,7 +58,7 @@ class RegressionDataset(Dataset):
 
 
     def __train_data__(self, recording_index):
-
+        # input_length = 320;
         framed_data = []
 
         for idx, feature in enumerate(self.files[recording_index]):
