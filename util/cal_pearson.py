@@ -1,12 +1,14 @@
 # PYTORCH version of the vlaai original code.
 import torch
+from icecream import ic
 import pdb
 
 def pearson_correlation(y_true, y_pred, axis=1):
 
     y_true_mean = torch.mean(y_true, dim=axis, keepdim=True)
     y_pred_mean = torch.mean(y_pred, dim=axis, keepdim=True)
-
+    # ic(y_true.shape, y_pred.shape)
+    # ic(y_true_mean.shape, y_pred_mean.shape)
     # Compute the numerator and denominator of the pearson correlation.
     numerator = torch.sum((y_true - y_true_mean) * (y_pred - y_pred_mean),
         dim=axis,

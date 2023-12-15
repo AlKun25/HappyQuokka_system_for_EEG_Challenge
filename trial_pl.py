@@ -80,7 +80,8 @@ class DecoderPL(L.LightningModule):
         l_1 = l1_loss(outputs, labels)
         # loss = l_p + self.lamda * l_1
         loss = l_p
-        # ic(l_p.shape)
+        ic(l_p.shape)
+        ic(l_1.shape)
         loss = loss.mean()
         # Logging to TensorBoard (if installed) by default
         # self.log("train/loss", loss, prog_bar=True, on_step=False, on_epoch=True)

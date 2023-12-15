@@ -28,7 +28,7 @@ class RegressionDataset(Dataset):
     def group_recordings(self, files: list):
         new_files = []
         # ic("_-_".join(os.path.basename(files[0]).split("_-_")))
-        ic(type(files), len(files))
+        # ic(type(files), len(files))
         if(self.task !="train"):
             grouped_files = itertools.groupby(sorted(files), lambda x: "_-_".join(os.path.basename(x).split("_-_")[:3]))
             for recording_name, feature_paths in grouped_files:
@@ -37,7 +37,7 @@ class RegressionDataset(Dataset):
             grouped_files = itertools.groupby(sorted(files), lambda x: "_-_".join(os.path.basename(x).split("_-_")[:4]))
             for recording_name, feature_paths in grouped_files:
                 new_files += [sorted(feature_paths, key=lambda x: "0" if x == "eeg" else x)]
-        ic(new_files[0])
+        # ic(new_files[0])
         return new_files
 
     def __len__(self):
@@ -60,14 +60,12 @@ class RegressionDataset(Dataset):
     def __train_data__(self, recording_index):
         # input_length = 320;
         framed_data = []
-
         for idx, feature in enumerate(self.files[recording_index]):
             data = np.load(feature)
-
             if idx == 0: 
+                # ic(len(data),self.input_length)
                 start_idx= randint(0,len(data)- self.input_length)
-
-            framed_data += [data[start_idx:start_idx + self.input_length]]
+            framed_data += [data[start_idx:start_idx + len(data)]]
 
         # if self.g_con == True:
         #     sub_idx = feature.split('/')[-1].split('_-_')[1].split('-')[-1]
@@ -78,7 +76,9 @@ class RegressionDataset(Dataset):
     
             # return torch.FloatTensor(framed_data[0]), torch.FloatTensor(framed_data[1]), sub_idx
         
-            
+        # try: 
+            # ic(type(type(framed_data)))
+        # ic(len(framed_data))
         return torch.FloatTensor(framed_data[0]), torch.FloatTensor(framed_data[1])
 
     def __test_data__(self, recording_index):
